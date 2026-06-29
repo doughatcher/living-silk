@@ -315,7 +315,7 @@ function applyPreset(s) {
   syncMaterialFromControls();
 }
 // neutral, faithful starting point for pasted / picked images (no inherited dual-tone)
-const NEUTRAL = { sheen: 0.24, metal: 0.35, shot: 0.55, shotColor: '#c9a24a', exp: 1.05 };
+const NEUTRAL = { sheen: 0.24, metal: 0.9, shot: 0.55, shotColor: '#c9a24a', exp: 1.05 };
 
 fetch('./saris.json').then(r => r.json()).then(list => {
   SARIS = list;
