@@ -1,0 +1,44 @@
+[
+  {
+    "slug": "yellow-kanjivaram",
+    "file": "assets/saris/yellow-kanjivaram_PB.jpg",
+    "title": "Yellow Kanjivaram Silk Saree",
+    "url": "https://www.nalli.com/products/yellow-kanjivaram-silk-saree-29",
+    "sheen": 0.88, "metal": 0.88, "shot": 0.3, "shotColor": "#8f9e35"
+  },
+  {
+    "slug": "skyblue-dualtone-mysore",
+    "file": "assets/saris/skyblue-dualtone-mysore_C.jpg",
+    "title": "Sky Blue Dual Tone Mysore Silk Saree",
+    "url": "https://www.nalli.com/products/sky-blue-dual-tone-mysore-silk-saree-4",
+    "sheen": 0.9, "metal": 0.6, "shot": 0.5, "shotColor": "#c46fae"
+  },
+  {
+    "slug": "peacock-dualtone-soft",
+    "file": "assets/saris/peacock-dualtone-soft_C.jpg",
+    "title": "Peacock Blue Dual Tone Soft Silk Saree",
+    "url": "https://www.nalli.com/products/peacock-blue-dual-tone-soft-silk-saree-48",
+    "sheen": 0.9, "metal": 0.55, "shot": 0.55, "shotColor": "#2fae8f"
+  },
+  {
+    "slug": "black-gadwal",
+    "file": "assets/saris/black-gadwal_PB.jpg",
+    "title": "Black Gadwal Silk Saree",
+    "url": "https://www.nalli.com/products/black-gadwal-silk-saree-bs3398777",
+    "sheen": 0.8, "metal": 0.95, "shot": 0.0, "shotColor": "#c9a24a"
+  },
+  {
+    "slug": "royalblue-kanjivaram",
+    "file": "assets/saris/royalblue-kanjivaram_PB.jpg",
+    "title": "Royal Blue Kanjivaram Silk Saree",
+    "url": "https://www.nalli.com/products/royal-blue-kanjivaram-silk-saree-2",
+    "sheen": 0.85, "metal": 0.9, "shot": 0.0, "shotColor": "#c9a24a"
+  },
+  {
+    "slug": "rust-kanchipuram",
+    "file": "assets/saris/rust-kanchipuram_PB.jpg",
+    "title": "Rust Kanchipuram Silk Saree",
+    "url": "https://www.nalli.com/products/brick-orange-kanchipuram-silk-saree-32",
+    "sheen": 0.8, "metal": 0.9, "shot": 0.0, "shotColor": "#c9a24a"
+  }
+]
