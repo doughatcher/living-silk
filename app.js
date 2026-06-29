@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 // ---------------------------------------------------------------------------
 // Living Silk — physically-based saree renderer (prototype)
@@ -12,7 +16,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 // ---------------------------------------------------------------------------
 
 const stage = document.getElementById('stage');
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -21,6 +25,14 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 stage.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
+scene.background = (() => {                 // soft studio gradient (kept below bloom threshold)
+  const c = document.createElement('canvas'); c.width = 16; c.height = 256;
+  const x = c.getContext('2d');
+  const g = x.createLinearGradient(0, 0, 0, 256);
+  g.addColorStop(0, '#ece7de'); g.addColorStop(0.55, '#e4ded3'); g.addColorStop(1, '#d6cfc3');
+  x.fillStyle = g; x.fillRect(0, 0, 16, 256);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+})();
 const camera = new THREE.PerspectiveCamera(34, innerWidth / innerHeight, 0.1, 100);
 camera.position.set(0, 0, 5.0);
 
@@ -44,6 +56,13 @@ controls.minDistance = 3;
 controls.maxDistance = 9;
 controls.enablePan = false;
 controls.target.set(0, 0, 0);
+
+// post-processing: a thresholded bloom so only the brightest zari glints sparkle
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.5, 0.5, 0.85);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
 
 // --- cloth geometry: a tall hanging panel we displace into folds ---------
 const SEG_X = 70, SEG_Y = 104;
@@ -270,7 +289,7 @@ function animate() {
   else if (autoSpin) cloth.rotation.y = Math.sin(t * 0.25) * 0.5;
 
   controls.update();
-  renderer.render(scene, camera);
+  composer.render();
   requestAnimationFrame(animate);
 }
 
@@ -292,6 +311,7 @@ let SARIS = [];
 function applyPreset(s) {
   cSheen.value = s.sheen; cMetal.value = s.metal; cShot.value = s.shot;
   cShotColor.value = s.shotColor || '#c9a24a';
+  renderer.toneMappingExposure = s.exp || 1.05;   // per-fabric exposure (tame bright silks, lift dark)
   syncMaterialFromControls();
 }
 
@@ -342,6 +362,8 @@ cSpin.addEventListener('change', () => { autoSpin = cSpin.checked; if (!autoSpin
 
 document.getElementById('gear').addEventListener('click', () =>
   document.getElementById('panel').classList.toggle('open'));
+// start collapsed on small screens so the panel doesn't cover the silk
+if (matchMedia('(max-width:560px)').matches) document.getElementById('panel').classList.remove('open');
 
 // compare-to-original-photo reveal
 const compareBtn = document.getElementById('compare');
@@ -380,8 +402,24 @@ function prettyTitleFromUrl(u) {
   } catch { return 'Saree'; }
 }
 
-// Try to read <product>.json through public CORS proxies. Static-site best effort.
+// Prefer a fabric/border detail shot over the model photo for a better texture.
+function pickBestImage(imgs) {
+  const by = (suf) => imgs.find(s => new RegExp('_' + suf + '\\.(jpg|jpeg|png|webp)', 'i').test(s));
+  return by('C') || by('PB') || by('PP') || by('B') || imgs[0];
+}
+
+// Resolve a Shopify product URL -> best image. Our Cloudflare Worker first
+// (no CORS limits, Shopify-host restricted), public proxies as a fallback.
+const RESOLVER = 'https://living-silk-resolver.doug-hatcher.workers.dev';
 async function resolveProductImage(productUrl) {
+  try {
+    const res = await fetch(`${RESOLVER}/?url=${encodeURIComponent(productUrl)}`, { cache: 'no-store' });
+    if (res.ok) {
+      const d = await res.json();
+      if (d.images && d.images.length) return { src: pickBestImage(d.images), title: d.title || prettyTitleFromUrl(productUrl) };
+    }
+  } catch (_) { /* fall through to proxies */ }
+
   const u = new URL(productUrl);
   const jsonUrl = `${u.origin}${u.pathname.replace(/\/$/, '')}.json`;
   const proxies = [
@@ -395,9 +433,7 @@ async function resolveProductImage(productUrl) {
       const data = JSON.parse(await res.text());
       const prod = data.product || data;
       const imgs = (prod.images || []).map(i => i.src || i);
-      if (!imgs.length) continue;
-      const main = imgs.find(s => /_M\.(jpg|jpeg|png)/i.test(s)) || imgs[0];
-      return { src: main, title: prod.title || prettyTitleFromUrl(productUrl) };
+      if (imgs.length) return { src: pickBestImage(imgs), title: prod.title || prettyTitleFromUrl(productUrl) };
     } catch (_) { /* try next */ }
   }
   throw new Error('unresolved');
@@ -408,5 +444,6 @@ addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
+  composer.setSize(innerWidth, innerHeight);
 });
 animate();
