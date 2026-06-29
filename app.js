@@ -314,6 +314,8 @@ function applyPreset(s) {
   renderer.toneMappingExposure = s.exp || 1.05;   // per-fabric exposure (tame bright silks, lift dark)
   syncMaterialFromControls();
 }
+// neutral, faithful starting point for pasted / picked images (no inherited dual-tone)
+const NEUTRAL = { sheen: 0.85, metal: 0.8, shot: 0, shotColor: '#c9a24a', exp: 1.05 };
 
 fetch('./saris.json').then(r => r.json()).then(list => {
   SARIS = list;
@@ -381,19 +383,46 @@ document.getElementById('urlform').addEventListener('submit', async (e) => {
   document.querySelectorAll('.rail img').forEach(n => n.classList.remove('active'));
 
   if (/\.(jpg|jpeg|png|webp|avif)(\?|$)/i.test(raw) || /cdn\.shopify\.com/i.test(raw)) {
+    applyPreset(NEUTRAL);
     loadSari(raw, prettyTitleFromUrl(raw));
     return;
   }
-  // treat as a product page URL -> resolve its main image via Shopify JSON
+  // treat as a product page URL -> resolve ALL images, let the user choose
   loadingOn();
   try {
-    const img = await resolveProductImage(raw);
-    loadSari(img.src, img.title);
+    const { title, images } = await resolveProductImages(raw);
+    loadingOff();
+    showPicker(title, images);
   } catch (err) {
     loadingOff();
-    toast('Could not auto-read that product page (cross-site limits). Paste the image address, or pick a sample.');
+    toast('Could not read that product page. Paste a direct image address, or pick a sample.');
   }
 });
+
+// image chooser shown after a product link resolves
+const picker = document.getElementById('picker');
+const pickerGrid = document.getElementById('pickerGrid');
+const pickerTitle = document.getElementById('pickerTitle');
+function showPicker(title, images) {
+  pickerTitle.textContent = title || 'Choose an image';
+  pickerGrid.innerHTML = '';
+  images.forEach((src) => {
+    const im = document.createElement('img');
+    im.src = src + (src.includes('?') ? '&' : '?') + 'width=240';
+    im.loading = 'lazy';
+    im.addEventListener('click', () => {
+      hidePicker();
+      document.querySelectorAll('.rail img').forEach(n => n.classList.remove('active'));
+      applyPreset(NEUTRAL);
+      loadSari(src, title);
+    });
+    pickerGrid.appendChild(im);
+  });
+  picker.classList.add('open');
+}
+function hidePicker() { picker.classList.remove('open'); }
+document.getElementById('pickerClose').addEventListener('click', hidePicker);
+picker.addEventListener('click', (e) => { if (e.target === picker) hidePicker(); });
 
 function prettyTitleFromUrl(u) {
   try {
@@ -402,21 +431,26 @@ function prettyTitleFromUrl(u) {
   } catch { return 'Saree'; }
 }
 
-// Prefer a fabric/border detail shot over the model photo for a better texture.
-function pickBestImage(imgs) {
-  const by = (suf) => imgs.find(s => new RegExp('_' + suf + '\\.(jpg|jpeg|png|webp)', 'i').test(s));
-  return by('C') || by('PB') || by('PP') || by('B') || imgs[0];
+// Order images so fabric/border close-ups come first, model shots last.
+function sortImages(imgs) {
+  const order = { C: 0, PB: 1, PP: 2, B: 3, M: 5 };
+  const rank = (s) => {
+    const m = s.match(/_([A-Z]{1,2})\.(?:jpg|jpeg|png|webp)/i);
+    const k = m ? m[1].toUpperCase() : '';
+    return k in order ? order[k] : 4;
+  };
+  return [...imgs].sort((a, b) => rank(a) - rank(b));
 }
 
-// Resolve a Shopify product URL -> best image. Our Cloudflare Worker first
-// (no CORS limits, Shopify-host restricted), public proxies as a fallback.
+// Resolve a Shopify product URL -> all images (sorted). Our Cloudflare Worker
+// first (no CORS limits, Shopify-host restricted), public proxies as fallback.
 const RESOLVER = 'https://living-silk-resolver.doug-hatcher.workers.dev';
-async function resolveProductImage(productUrl) {
+async function resolveProductImages(productUrl) {
   try {
     const res = await fetch(`${RESOLVER}/?url=${encodeURIComponent(productUrl)}`, { cache: 'no-store' });
     if (res.ok) {
       const d = await res.json();
-      if (d.images && d.images.length) return { src: pickBestImage(d.images), title: d.title || prettyTitleFromUrl(productUrl) };
+      if (d.images && d.images.length) return { title: d.title || prettyTitleFromUrl(productUrl), images: sortImages(d.images) };
     }
   } catch (_) { /* fall through to proxies */ }
 
@@ -433,7 +467,7 @@ async function resolveProductImage(productUrl) {
       const data = JSON.parse(await res.text());
       const prod = data.product || data;
       const imgs = (prod.images || []).map(i => i.src || i);
-      if (imgs.length) return { src: pickBestImage(imgs), title: prod.title || prettyTitleFromUrl(productUrl) };
+      if (imgs.length) return { title: prod.title || prettyTitleFromUrl(productUrl), images: sortImages(imgs) };
     } catch (_) { /* try next */ }
   }
   throw new Error('unresolved');
